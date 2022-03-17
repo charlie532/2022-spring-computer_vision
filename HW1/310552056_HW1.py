@@ -75,8 +75,8 @@ def pseudo_inverse(met_a, met_b):
     return np.dot(np.dot(np.linalg.inv(np.dot(met_a.T, met_a)), met_a.T), met_b)
 
 if __name__ == '__main__':
-    img_namelist = ['bunny', 'star']
-    # img_namelist = ['bunny', 'star', 'venus']
+    # img_namelist = ['bunny', 'star']
+    img_namelist = ['bunny', 'star', 'venus']
 
     for k in range(len(img_namelist)):
         # read info
@@ -134,8 +134,6 @@ if __name__ == '__main__':
         # method 2. linear algebra (stored M in sparsed way)
         # use { V=M*D => D=(MT*M)^-1*M*V } to find D (pseudo-inverse)
         S = image_row * image_col
-        # D = np.zeros((S, 1))
-        # M = np.zeros((S*2, S))
         V = np.zeros((S*2, 1))
 
         # build V
@@ -156,28 +154,29 @@ if __name__ == '__main__':
         data = []
         for x in range(image_row):
             for y in range(image_col):
-                # set Z(x, y)
-                row.append(x*image_col+y)
-                col.append(x*image_col+y)
-                data.append(-1)
-                row.append(S + x*image_col+y)
-                col.append(x*image_col+y)
-                data.append(-1)
-                # set Z(x+1, y) and Z(x, y+1) (or Z(x-1, y), Z(x, y-1))
-                if x*image_col+(y+1) < S and (x+1)*image_col+y < S:
+                if img1[x][y] != 0:
+                    # set Z(x, y)
                     row.append(x*image_col+y)
-                    col.append(x*image_col+(y+1))
-                    data.append(1)
+                    col.append(x*image_col+y)
+                    data.append(-1)
                     row.append(S + x*image_col+y)
-                    col.append((x+1)*image_col+y)
-                    data.append(1)
-                else:
-                    row.append(x*image_col+y)
-                    col.append(x*image_col+(y-1))
-                    data.append(1)
-                    row.append(S + x*image_col+y)
-                    col.append((x-1)*image_col+y)
-                    data.append(1)
+                    col.append(x*image_col+y)
+                    data.append(-1)
+                    # set Z(x+1, y) and Z(x, y+1) (or Z(x-1, y), Z(x, y-1))
+                    if x*image_col+(y+1) < S and (x+1)*image_col+y < S:
+                        row.append(x*image_col+y)
+                        col.append(x*image_col+(y+1))
+                        data.append(1)
+                        row.append(S + x*image_col+y)
+                        col.append((x+1)*image_col+y)
+                        data.append(1)
+                    else:
+                        row.append(x*image_col+y)
+                        col.append(x*image_col+(y-1))
+                        data.append(1)
+                        row.append(S + x*image_col+y)
+                        col.append((x-1)*image_col+y)
+                        data.append(1)
         M = scipy.sparse.coo_matrix((data, (row, col)), shape=(2*S, S)).tocsc()
         print(M)
 
