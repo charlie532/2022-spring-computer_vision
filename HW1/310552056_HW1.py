@@ -75,7 +75,6 @@ def pseudo_inverse(met_a, met_b):
     return np.dot(np.dot(np.linalg.inv(np.dot(met_a.T, met_a)), met_a.T), met_b)
 
 if __name__ == '__main__':
-    # img_namelist = ['bunny', 'star']
     img_namelist = ['bunny', 'star', 'venus']
 
     for k in range(len(img_namelist)):
@@ -124,66 +123,56 @@ if __name__ == '__main__':
                 Kd = np.linalg.norm(KdN)
                 if Kd != 0:
                     N[x][y] = KdN / Kd
-        
+
         # visualize N
-        # np.set_printoptions(threshold=np.inf)
         normal_visualization(N)
 
 
         # Surface Reconstruction
         # method 2. linear algebra (stored M in sparsed way)
-        # use { V=M*D => D=(MT*M)^-1*M*V } to find D (pseudo-inverse)
-        S = image_row * image_col
-        V = np.zeros((S*2, 1))
+        # get object index and valid pixel amount from img1(mask)
+        obj_h, obj_w = np.where(img1 != 0)
+        obj_pixnum = np.size(obj_h)
+        obj_grey = np.zeros((image_row, image_col))
+        for i in range(np.size(obj_h)):
+            obj_grey[obj_h[i], obj_w[i]] = i
 
-        # build V
-        # culcalate all -(nx / nz)
-        for x in range(image_row):
-            for y in range(image_col):
-                if N[x][y][2] != 0:
-                    V[x*image_col+y][0] = -(N[x][y][0] / N[x][y][2])
-        # culcalate all -(ny / nz)
-        for x in range(image_row):
-            for y in range(image_col):
-                if N[x][y][2] != 0:
-                    V[S + x*image_col+y][0] = -(N[x][y][1] / N[x][y][2])
+        # build M and v (sparse matrix)
+        M = scipy.sparse.lil_matrix((2*obj_pixnum, obj_pixnum))
+        V = np.zeros((2*obj_pixnum, 1))
 
-        # build M (sparse matrix)
-        row = []
-        col = []
-        data = []
-        for x in range(image_row):
-            for y in range(image_col):
-                if img1[x][y] != 0:
-                    # set Z(x, y)
-                    row.append(x*image_col+y)
-                    col.append(x*image_col+y)
-                    data.append(-1)
-                    row.append(S + x*image_col+y)
-                    col.append(x*image_col+y)
-                    data.append(-1)
-                    # set Z(x+1, y) and Z(x, y+1) (or Z(x-1, y), Z(x, y-1))
-                    if x*image_col+(y+1) < S and (x+1)*image_col+y < S:
-                        row.append(x*image_col+y)
-                        col.append(x*image_col+(y+1))
-                        data.append(1)
-                        row.append(S + x*image_col+y)
-                        col.append((x+1)*image_col+y)
-                        data.append(1)
-                    else:
-                        row.append(x*image_col+y)
-                        col.append(x*image_col+(y-1))
-                        data.append(1)
-                        row.append(S + x*image_col+y)
-                        col.append((x-1)*image_col+y)
-                        data.append(1)
-        M = scipy.sparse.coo_matrix((data, (row, col)), shape=(2*S, S)).tocsc()
-        print(M)
+        for i in range(obj_pixnum):
+            h = obj_h[i]
+            w = obj_w[i]
 
-        # find D
-        D = scipy.sparse.linalg.lsqr(M, V, show=True)[0]
-        print(D)
-        
+            # z_(x+1, y) - z(x, y) = -(nx / nz)
+            if img1[h, w+1] != 0:
+                M[i*2, i] = -1
+                M[i*2, obj_grey[h, w+1]] = 1
+                V[i*2] = -(N[h, w, 0] / N[h, w, 2])
+            elif img1[h, w-1] != 0:
+                M[i*2, obj_grey[h, w-1]] = -1
+                M[i*2, i] = 1
+                V[i*2] = -(N[h, w, 0] / N[h, w, 2])
+
+            # z_(x, y+1) - z(x, y) = -(ny / nz)
+            if img1[h+1, w] != 0:
+                M[i*2+1, i] = 1
+                M[i*2+1, obj_grey[h+1, w]] = -1
+                V[i*2+1] = -(N[h, w, 1] / N[h, w, 2])
+            elif img1[h-1, w] != 0:
+                M[i*2+1, obj_grey[h-1, w]] = 1
+                M[i*2+1, i] = -1
+                V[i*2+1] = -(N[h, w, 1] / N[h, w, 2])
+
+        # find Z (solve MT*M*Z = MT*V)
+        Z = scipy.sparse.linalg.spsolve(M.T@M, M.T@V)
+
+        # build whole graph D
+        D = img1.astype('float')
+        for i in range(obj_pixnum):
+            D[obj_h[i], obj_w[i]] = Z[i]
+
         # visualize D
         depth_visualization(D)
 
