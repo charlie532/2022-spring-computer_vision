@@ -168,6 +168,13 @@ if __name__ == '__main__':
         # find Z (solve MT*M*Z = MT*V)
         Z = scipy.sparse.linalg.spsolve(M.T@M, M.T@V)
 
+        # fix the outlier
+        if img_namelist[k] == 'venus':
+            bot_Z = np.mean(Z) - 22
+            Z[Z<bot_Z] = bot_Z
+            top_Z = np.mean(Z) + 28
+            Z[Z>top_Z] = top_Z
+
         # build whole graph D
         D = img1.astype('float')
         for i in range(obj_pixnum):
